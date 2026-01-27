@@ -1,0 +1,32 @@
+body {
+  background: #0f172a;
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  margin: 0;
+  font-family: sans-serif;
+}
+.hero {
+  text-align: center;
+  border: 2px solid #ef4444;
+  padding: 2rem;
+  border-radius: 1rem;
+  background: rgba(0,0,0,0.5);
+}
+h1 { color: #ef4444; font-size: 3rem; }
+button {
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 1rem 2rem;
+  cursor: pointer;
+  font-weight: bold;
+  border-radius: 0.5rem;
+  transition: 0.3s;
+}
+button:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 20px #ef4444;
+}
