@@ -1,110 +1,70 @@
 #!/usr/bin/env python3
-"""Linux Privilege Escalation Detection Checks"""
-import subprocess
+"""Linux Privilege Escalation Checks"""
 import os
+import subprocess
 import stat
 
-class LinuxPrivEscChecker:
+class LinuxPrivescChecker:
     def __init__(self):
         self.findings = []
 
     def _run(self, cmd):
         try:
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=5)
-            return result.stdout.strip()
+            return subprocess.check_output(cmd, shell=True, stderr=subprocess.DEVNULL, timeout=5).decode(errors="ignore").strip()
         except:
             return ""
 
-    def check_suid_files(self):
-        """Check for SUID/SGID binaries that can be abused"""
-        print("[*] Checking SUID/SGID binaries...")
-        output = self._run("find / -perm -4000 -type f 2>/dev/null")
-        dangerous = ["/usr/bin/python", "/usr/bin/perl", "/usr/bin/find",
-                     "/usr/bin/vim", "/usr/bin/nmap", "/usr/bin/awk", "/usr/bin/bash"]
-        for line in output.splitlines():
-            if any(d in line for d in dangerous):
-                self.findings.append({
-                    "type": "Dangerous SUID Binary",
-                    "path": line,
-                    "severity": "CRITICAL",
-                    "description": f"{line} has SUID bit set — potential GTFOBins abuse",
-                    "mitigation": f"Remove SUID: chmod u-s {line}"
-                })
-                print(f"[!] CRITICAL: SUID binary: {line}")
+    def _check_suid(self):
+        out = self._run("find / -perm -4000 -type f 2>/dev/null")
+        known_suid = {"/usr/bin/sudo", "/usr/bin/passwd", "/bin/su"}
+        for f in out.splitlines():
+            if f not in known_suid:
+                self.findings.append({"type": "SUID Binary", "detail": f, "severity": "HIGH",
+                                       "desc": f"Non-standard SUID binary: {f}"})
+                print(f"[!] SUID: {f}")
 
-    def check_writable_passwd(self):
-        """Check if /etc/passwd is writable"""
-        print("[*] Checking /etc/passwd permissions...")
-        if os.access("/etc/passwd", os.W_OK):
-            self.findings.append({
-                "type": "Writable /etc/passwd",
-                "path": "/etc/passwd",
-                "severity": "CRITICAL",
-                "description": "World-writable /etc/passwd allows adding root user",
-                "mitigation": "chmod 644 /etc/passwd"
-            })
-            print("[!] CRITICAL: /etc/passwd is writable!")
+    def _check_sudo(self):
+        out = self._run("sudo -l 2>/dev/null")
+        if "NOPASSWD" in out:
+            self.findings.append({"type": "Sudo NOPASSWD", "detail": out[:200], "severity": "CRITICAL",
+                                   "desc": "sudo NOPASSWD configured - passwordless privilege escalation possible"})
+            print("[!] sudo NOPASSWD found!")
 
-    def check_sudo_nopasswd(self):
-        """Check for NOPASSWD sudo entries"""
-        print("[*] Checking sudo configuration...")
-        output = self._run("sudo -l 2>/dev/null")
-        if "NOPASSWD" in output:
-            self.findings.append({
-                "type": "Sudo NOPASSWD",
-                "detail": output[:200],
-                "severity": "HIGH",
-                "description": "User can run commands as root without password",
-                "mitigation": "Review /etc/sudoers and remove NOPASSWD entries"
-            })
-            print("[!] HIGH: NOPASSWD sudo found")
+    def _check_writable_etc(self):
+        sensitive = ["/etc/passwd", "/etc/shadow", "/etc/crontab", "/etc/sudoers"]
+        for f in sensitive:
+            try:
+                if os.access(f, os.W_OK):
+                    self.findings.append({"type": "Writable File", "detail": f, "severity": "CRITICAL",
+                                           "desc": f"{f} is world-writable!"})
+                    print(f"[!] Writable: {f}")
+            except:
+                pass
 
-    def check_cron_writable(self):
-        """Check for writable cron files"""
-        print("[*] Checking cron jobs...")
-        cron_dirs = ["/etc/cron.d", "/etc/cron.daily", "/etc/cron.hourly", "/var/spool/cron"]
+    def _check_cron(self):
+        cron_dirs = ["/etc/cron.d", "/etc/cron.daily", "/var/spool/cron"]
         for d in cron_dirs:
-            if os.path.exists(d) and os.access(d, os.W_OK):
-                self.findings.append({
-                    "type": "Writable Cron Directory",
-                    "path": d,
-                    "severity": "HIGH",
-                    "description": "Writable cron directory can be abused for persistence",
-                    "mitigation": f"chmod o-w {d}"
-                })
-                print(f"[!] HIGH: Writable cron dir: {d}")
+            try:
+                for f in os.listdir(d):
+                    fpath = os.path.join(d, f)
+                    s = os.stat(fpath)
+                    if s.st_mode & stat.S_IWOTH:
+                        self.findings.append({"type": "Writable Cron", "detail": fpath, "severity": "HIGH",
+                                               "desc": f"World-writable cron job: {fpath}"})
+            except:
+                pass
 
-    def check_world_writable(self):
-        """Check critical world-writable files"""
-        print("[*] Checking world-writable files...")
-        output = self._run("find /etc /usr/bin /usr/sbin -perm -002 -type f 2>/dev/null")
-        for f in output.splitlines()[:10]:
-            self.findings.append({
-                "type": "World-Writable File",
-                "path": f,
-                "severity": "MEDIUM",
-                "description": "World-writable system file can be modified by any user",
-                "mitigation": f"chmod o-w {f}"
-            })
-            print(f"[!] MEDIUM: World-writable: {f}")
+    def _check_path(self):
+        path = os.environ.get("PATH", "")
+        for p in path.split(":"):
+            if p in [".", "", ".."]:
+                self.findings.append({"type": "PATH Injection", "detail": p, "severity": "HIGH",
+                                       "desc": f"Current dir in PATH: '{p}' - PATH hijacking possible"})
 
-    def check_kernel_version(self):
-        """Check for outdated kernel"""
-        print("[*] Checking kernel version...")
-        kernel = self._run("uname -r")
-        self.findings.append({
-            "type": "Kernel Version",
-            "version": kernel,
-            "severity": "INFO",
-            "description": f"Running kernel: {kernel} — check for known CVEs",
-            "mitigation": "Keep kernel updated"
-        })
-
-    def check_all(self):
-        self.check_suid_files()
-        self.check_writable_passwd()
-        self.check_sudo_nopasswd()
-        self.check_cron_writable()
-        self.check_world_writable()
-        self.check_kernel_version()
+    def check(self):
+        self._check_suid()
+        self._check_sudo()
+        self._check_writable_etc()
+        self._check_cron()
+        self._check_path()
         return self.findings
