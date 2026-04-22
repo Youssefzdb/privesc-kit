@@ -1,23 +1,19 @@
 # privesc-kit 🔓
 
-Privilege Escalation Detection & Lab Tool
-
-> ⚠️ **FOR AUTHORIZED USE ONLY** — CTF environments, authorized pentests, and personal lab machines.
+Privilege Escalation Techniques & Detection Lab
 
 ## Features
-- Linux system enumeration (OS, users, sudo perms, env)
-- SUID binary discovery with GTFObins links
-- Cron job misconfiguration detection
-- Writable cron path detection
+- SUID/SGID binary detection with exploitability assessment
+- Writable cron job detection
+- PATH hijacking vulnerability check
+- JSON report export
 
-## Usage
+## Usage (Linux/Lab Environment Only)
 ```bash
-# Full enumeration
-sudo python main.py --full
-
-# Only SUID check
-python main.py --suid
-
-# Only cron check
-python main.py --cron
+pip install -r requirements.txt
+python main.py --mode full
+python main.py --mode suid --output suid_report.json
 ```
+
+## Disclaimer
+For use in CTF environments and authorized penetration testing labs only.
