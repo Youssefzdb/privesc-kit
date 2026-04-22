@@ -1,37 +1,33 @@
 #!/usr/bin/env python3
-"""
-privesc-kit - Privilege Escalation Detection & Defense Lab
-Detects common Linux/Windows privilege escalation vectors (defensive use)
-"""
+"""privesc-kit - Privilege Escalation Detection Lab"""
 import argparse
 import platform
-from modules.linux_checks import LinuxPrivEscChecker
-from modules.windows_checks import WindowsPrivEscChecker
-from modules.report import PrivEscReport
+from modules.linux_checks import LinuxPrivescChecker
+from modules.windows_checks import WindowsPrivescChecker
+from modules.report import Report
 
 def main():
-    parser = argparse.ArgumentParser(description="privesc-kit - PrivEsc Detection Tool")
+    parser = argparse.ArgumentParser(description="privesc-kit - PrivEsc Detection")
     parser.add_argument("--os", choices=["linux", "windows", "auto"], default="auto")
     parser.add_argument("--output", default="privesc_report.html")
     args = parser.parse_args()
 
     os_type = args.os
     if os_type == "auto":
-        os_type = "linux" if platform.system() == "Linux" else "windows"
+        os_type = "windows" if platform.system() == "Windows" else "linux"
 
-    print(f"[*] Running privilege escalation checks on: {os_type.upper()}")
+    print(f"[*] privesc-kit running on: {os_type}")
     findings = []
 
     if os_type == "linux":
-        checker = LinuxPrivEscChecker()
-        findings = checker.check_all()
+        checker = LinuxPrivescChecker()
     else:
-        checker = WindowsPrivEscChecker()
-        findings = checker.check_all()
+        checker = WindowsPrivescChecker()
 
-    report = PrivEscReport(os_type, findings)
-    report.save(args.output)
-    print(f"[+] Found {len(findings)} potential vectors. Report: {args.output}")
+    findings = checker.check()
+    print(f"[!] Found {len(findings)} potential vectors")
+    Report(os_type, findings).save(args.output)
+    print(f"[+] Report: {args.output}")
 
 if __name__ == "__main__":
     main()
