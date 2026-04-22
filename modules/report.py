@@ -1,37 +1,39 @@
 #!/usr/bin/env python3
-"""Privesc Report Generator"""
+"""Privilege Escalation Report Generator"""
 from datetime import datetime
 
 class PrivescReport:
-    def __init__(self, target_os, results):
-        self.target_os = target_os
-        self.results = results if isinstance(results, list) else sum(results.values(), [])
+    def __init__(self, results):
+        self.results = results
 
     def save(self, filename):
-        findings_html = "".join(
-            f"<tr><td>{f.get('type','')}</td><td>{f.get('detail',f.get('path',''))}</td>"
-            f"<td class='{f.get('severity','').lower()}'>{f.get('severity','')}</td>"
-            f"<td>{f.get('note','')}</td></tr>"
-            for f in self.results
-        )
-        html = f"""<!DOCTYPE html>
-<html><head><title>Privesc Report</title>
-<style>
-body{{font-family:Arial;background:#0f0f0f;color:#ddd;padding:20px}}
-h1{{color:#f59e0b}} .card{{background:#1a1a1a;border-radius:8px;padding:15px;margin:10px 0}}
-table{{width:100%;border-collapse:collapse}} td,th{{padding:8px;border:1px solid #333}}
-th{{background:#222}} .critical{{color:#ef4444}} .high{{color:#f97316}} .medium{{color:#facc15}}
-</style></head>
-<body>
-<h1>Privesc-Kit Report [{self.target_os.upper()}]</h1>
-<p>{datetime.now().strftime('%Y-%m-%d %H:%M')} | {len(self.results)} findings</p>
-<div class="card">
-  <table><tr><th>Type</th><th>Detail</th><th>Severity</th><th>Note</th></tr>
-  {findings_html}</table>
-</div>
-</body></html>"""
-        with open(filename, "w") as f:
-            f.write(html)
+        lines = [
+            "=" * 60,
+            "privesc-kit Report",
+            f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            "=" * 60,
+        ]
 
-cat > /tmp/privesc_req.txt << 'EOF'
-colorama>=0.4.6
+        if "system" in self.results:
+            lines.append("\n[SYSTEM INFO]")
+            for k, v in self.results["system"].items():
+                lines.append(f"  {k}: {v[:200] if v else 'N/A'}")
+
+        if "suid" in self.results:
+            lines.append("\n[SUID BINARIES]")
+            for item in self.results["suid"]:
+                flag = "[EXPLOITABLE]" if item["exploitable"] else "[ok]"
+                lines.append(f"  {flag} {item['path']}")
+                if item["exploitable"]:
+                    lines.append(f"       GTFObins: https://gtfobins.github.io/gtfobins/{item['binary']}/")
+
+        if "cron" in self.results:
+            lines.append("\n[CRON JOBS]")
+            for item in self.results["cron"]:
+                severity = item.get("severity", "")
+                prefix = "[!!!]" if severity == "CRITICAL" else "[cron]"
+                lines.append(f"  {prefix} {item.get('entry', '')[:120]}")
+
+        with open(filename, "w") as f:
+            f.write("\n".join(lines))
+        print(f"[+] Report saved: {filename}")
