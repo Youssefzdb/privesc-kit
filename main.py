@@ -1,42 +1,35 @@
 #!/usr/bin/env python3
-"""
-privesc-kit - Privilege Escalation Detection & Lab Tool
-For use in authorized penetration testing and CTF environments ONLY
-"""
+"""privesc-kit - Privilege Escalation Detection Lab"""
 import argparse
-from modules.linux_enum import LinuxEnumerator
-from modules.suid_finder import SUIDFinder
+from modules.suid_checker import SUIDChecker
 from modules.cron_checker import CronChecker
-from modules.report import PrivescReport
+from modules.writable_checker import WritableChecker
+from modules.reporter import PrivescReporter
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="privesc-kit - Priv Esc Detection Tool (AUTHORIZED USE ONLY)"
-    )
-    parser.add_argument("--full", action="store_true", help="Run full enumeration")
-    parser.add_argument("--suid", action="store_true", help="Check SUID binaries")
-    parser.add_argument("--cron", action="store_true", help="Check cron jobs")
-    parser.add_argument("--output", default="privesc_report.txt")
+    parser = argparse.ArgumentParser(description="privesc-kit - PrivEsc Detection")
+    parser.add_argument("--mode", choices=["suid", "cron", "writable", "full"], default="full")
+    parser.add_argument("--output", default="privesc_report.json")
     args = parser.parse_args()
 
+    print("[*] privesc-kit - Privilege Escalation Detection")
     results = {}
-    print("[*] privesc-kit starting (AUTHORIZED LAB USE ONLY)")
 
-    if args.full or args.suid:
-        suid = SUIDFinder()
-        results["suid"] = suid.find()
+    if args.mode in ["suid", "full"]:
+        suid = SUIDChecker()
+        results["suid"] = suid.check()
 
-    if args.full or args.cron:
+    if args.mode in ["cron", "full"]:
         cron = CronChecker()
         results["cron"] = cron.check()
 
-    if args.full:
-        enum = LinuxEnumerator()
-        results["system"] = enum.enumerate()
+    if args.mode in ["writable", "full"]:
+        writable = WritableChecker()
+        results["writable"] = writable.check()
 
-    report = PrivescReport(results)
-    report.save(args.output)
-    print(f"[+] Report saved: {args.output}")
+    reporter = PrivescReporter(results)
+    reporter.save(args.output)
+    print(f"[+] Report: {args.output}")
 
 if __name__ == "__main__":
     main()
